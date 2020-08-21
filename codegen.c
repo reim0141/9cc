@@ -82,9 +82,15 @@ void codegen(Node *node) {
   printf(".global main\n");
   printf("main:\n");
   
+  int offset = 0;
+  for (LVar *var = locals; var; var = var->next) {
+    offset +=8;
+  }
+  
   printf("  push rbp\n");
   printf("  mov rbp, rsp\n");
-  printf("  sub rsp, 208\n");
+  printf("  sub rsp, %d\n", offset);
+
 
   for (int i = 0; code[i]; i++) {
     gen(code[i]);

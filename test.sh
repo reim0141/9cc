@@ -17,7 +17,6 @@ assert() {
 }
 
 assert 0 '0;'
-assert 42 '42;'
 assert 21 '5+20-4;'
 assert 41 ' 12 + 34 - 5 ;'
 assert 47 '5+6*7;'
@@ -49,4 +48,7 @@ assert 0 '1>=2;'
 assert 3 '1;2;3;'
 assert 255 'a=100 + 155;'
 assert 3 'x=1;y=2;z=3;'
+assert 111 'a3=100;a2=10;a1=1;a3+a2+a1;'
+assert 3 'foo = 3;'
+
 echo OK

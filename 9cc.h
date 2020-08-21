@@ -24,6 +24,16 @@ struct Token {
   int len;         // length of token
 };
 
+typedef struct LVar LVar;
+
+struct LVar {
+  LVar *next;
+  char *name;
+  int len;
+  int offset;
+};
+
+
 
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
@@ -36,6 +46,7 @@ Token *tokenize();
 
 extern char *user_input;
 extern Token *token;
+extern LVar *locals;
 
 //
 // Parser
