@@ -15,6 +15,11 @@ void gen(Node *node) {
   case ND_NUM:
     printf("  push %d\n",node->val);
     return;
+  case ND_RETURN:
+    gen(node->lhs);
+    printf("  pop rax\n");
+    printf("  jmp .L.return\n");
+    return;
   case ND_LVAR:
     gen_lval(node);
     printf("  pop rax\n");
@@ -94,13 +99,12 @@ void codegen(Node *node) {
 
   for (int i = 0; code[i]; i++) {
     gen(code[i]);
-
-    printf("  pop rax\n");
   }
 
 
   // A result must be at the top of the stack, so pop it
   // to RAX to make it a program exit code.
+  printf(".L.return:\n");
   printf("  mov rsp, rbp\n");
   printf("  pop rbp\n");
   printf("  ret\n");

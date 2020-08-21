@@ -101,6 +101,13 @@ Token *tokenize() {
       continue;
     }
 
+    if (startswith(p, "return") && !is_alnum(p[6])) {
+      cur = new_token(TK_RESERVED, cur, p, 6);
+      p += 6;
+      continue;
+    }
+
+
     if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") || startswith(p, ">=")) {
       cur = new_token(TK_RESERVED, cur, p, 2);
       p += 2;
@@ -172,6 +179,13 @@ LVar *find_lvar(Token *tok) {
   return NULL;
 }
 
+Node *new_unary(NodeKind kind, Node *expr) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  node->lhs = expr;
+  return node;
+}
+
 // program = stmt*
 Node *program() {
   locals = NULL;
@@ -183,9 +197,16 @@ Node *program() {
 
 // stmt = expr ";"
 Node *stmt() {
-  Node *node = expr();
-  expect(";");
-  return node;
+  if (consume("return")) {
+    Node *node = new_unary(ND_RETURN, expr());
+    expect(";");
+    return node;
+  }
+  else {
+    Node *node = expr();
+    expect(";");
+    return node;
+  }
 }
 
 // expr = assign
@@ -269,7 +290,7 @@ Node *unary() {
   if (consume("+"))
     return primary();
   if (consume("-"))
-    return new_node(ND_SUB, new_node_num(0), primary());  
+    return new_node(ND_SUB, new_node_num(0), unary());  
   
   return primary();
 }

@@ -8,7 +8,7 @@
 // kind of token
 typedef enum {
   TK_RESERVED,  // symbol
-  TK_IDENT,      // identifier
+  TK_IDENT,     // identifier
   TK_NUM,       // integer
   TK_EOF,       // End of File
 } TokenKind;
@@ -61,6 +61,7 @@ typedef enum {
   ND_NE,  // !=
   ND_LT,  // <
   ND_LE,  // <=
+  ND_RETURN, // return
   ND_ASSIGN, // =
   ND_LVAR, // local variables
   ND_NUM, // Integer
