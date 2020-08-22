@@ -80,6 +80,8 @@ struct Node {
   Node *cond;
   Node *then;
   Node *els;
+  Node *init;
+  Node *inc;
 };
 
 

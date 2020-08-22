@@ -252,6 +252,24 @@ Node *stmt() {
 
     return node;
   }
+  if (consume("for")) {
+    Node *node = new_branch(ND_FOR);
+    expect("(");
+    if (!consume(";")) {
+      node->init = expr();
+      expect(";");
+    }
+    if (!consume(";")) {
+      node->cond = expr();
+      expect(";");
+    }
+    if (!consume(")")) {
+      node->inc = expr();
+      expect(")");
+    }
+    node->then = stmt();
+    return node;
+  }
   else {
     Node *node = expr();
     expect(";");
