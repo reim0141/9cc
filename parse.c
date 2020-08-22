@@ -243,6 +243,15 @@ Node *stmt() {
       node->els = stmt();
     return node;
   }
+  if (consume("while")) {
+    Node *node = new_branch(ND_WHILE);
+    expect("(");
+    node->cond = expr();
+    expect(")");
+    node->then = stmt();
+
+    return node;
+  }
   else {
     Node *node = expr();
     expect(";");
