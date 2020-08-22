@@ -53,4 +53,8 @@ assert 3 'x=1;y=2; return z=3;'
 assert 111 'a3=100;a2=10;a1=1; return a3+a2+a1;'
 assert 3 'return foo = 3;'
 
+assert 3 'if (0) return 2; return 3;'
+assert 3 'if (1-1) return 2; return 3;'
+assert 2 'if (1) return 2; return 3;'
+assert 2 'if (2-1) return 2; return 3;'
 echo OK

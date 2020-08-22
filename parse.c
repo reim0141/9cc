@@ -100,6 +100,30 @@ Token *tokenize() {
       p++;
       continue;
     }
+    
+    if (startswith(p,"if") && !is_alnum(p[2])) {
+      cur = new_token(TK_RESERVED, cur, p, 2);
+      p += 2;
+      continue;
+    }
+    if (startswith(p,"else") && !is_alnum(p[4])) {
+      cur = new_token(TK_RESERVED, cur, p, 4);
+      p += 4;
+      continue;
+    }
+
+
+   if (startswith(p,"for") && !is_alnum(p[3])) {
+      cur = new_token(TK_RESERVED, cur, p, 3);
+      p += 3;
+      continue;
+    }
+
+   if (startswith(p,"while") && !is_alnum(p[5])) {
+      cur = new_token(TK_RESERVED, cur, p, 5);
+      p += 5;
+      continue;
+    }
 
     if (startswith(p, "return") && !is_alnum(p[6])) {
       cur = new_token(TK_RESERVED, cur, p, 6);
@@ -179,6 +203,12 @@ LVar *find_lvar(Token *tok) {
   return NULL;
 }
 
+Node *new_branch(NodeKind kind) {
+  Node *node = calloc(1, sizeof(Node));
+  node->kind = kind;
+  return node;
+}
+
 Node *new_unary(NodeKind kind, Node *expr) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
@@ -195,11 +225,22 @@ Node *program() {
   code[i] = NULL;
 }
 
-// stmt = expr ";"
+// stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt
 Node *stmt() {
   if (consume("return")) {
     Node *node = new_unary(ND_RETURN, expr());
     expect(";");
+    return node;
+  }
+  if (consume("if")) {
+    Node *node = new_branch(ND_IF);
+    expect("(");
+    node->cond = expr();
+    expect(")");
+    node->then = stmt();
+
+    if (consume("else")) 
+      node->els = stmt();
     return node;
   }
   else {
@@ -295,7 +336,7 @@ Node *unary() {
   return primary();
 }
 
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident | num
 Node *primary(){
   if (consume("(")) {
     Node *node = expr();
