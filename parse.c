@@ -137,7 +137,7 @@ Token *tokenize() {
       p += 2;
       continue;
     }
-    if (strchr("+-*/()<>;={}", *p)) {
+    if (strchr("+-*/()<>;={},", *p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
@@ -382,8 +382,24 @@ Node *unary() {
   
   return primary();
 }
+// func_args = "(" (assign ("," assign)*? ")"
+Node *func_args() {
+  if(consume(")"))
+    return NULL;
 
-// primary = "(" expr ")" | ident ("(" ")")? | num
+  Node *head = assign();
+  Node *cur = head;
+
+  while(consume(",")) {
+    cur->next = assign();
+    cur = cur->next;
+  }
+  expect(")");
+  return head;
+}
+
+
+// primary = "(" expr ")" | ident func-args? | num
 Node *primary(){
   if (consume("(")) {
     Node *node = expr();
@@ -394,9 +410,9 @@ Node *primary(){
   Token *tok = consume_ident();
   if (tok) {
     if (consume("(")) {
-      expect(")");
       Node *node = new_branch(ND_FUNCALL);
       node->funcname = duplicate(tok->str, tok->len);
+      node->args = func_args();
       return node;
     }
     Node *node = calloc(1, sizeof(Node));

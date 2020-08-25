@@ -87,6 +87,7 @@ struct Node {
   Node *next;
   Node *body;
   char *funcname;
+  Node *args;
 };
 
 
