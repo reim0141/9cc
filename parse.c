@@ -137,7 +137,7 @@ Token *tokenize() {
       p += 2;
       continue;
     }
-    if (strchr("+-*/()<>;=", *p)) {
+    if (strchr("+-*/()<>;={}", *p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
@@ -225,7 +225,7 @@ Node *program() {
   code[i] = NULL;
 }
 
-// stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt
+// stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"
 Node *stmt() {
   if (consume("return")) {
     Node *node = new_unary(ND_RETURN, expr());
@@ -268,6 +268,17 @@ Node *stmt() {
       expect(")");
     }
     node->then = stmt();
+    return node;
+  }
+  if (consume("{")) {
+    Node head = {};
+    Node *cur = &head;
+    while (!consume("}")) {
+      cur->next = stmt();
+      cur = cur->next;
+    }
+    Node *node = new_branch(ND_BLOCK);
+    node->body = head.next;
     return node;
   }
   else {
@@ -353,7 +364,7 @@ Node *mul() {
   }
 }
 
-// unary = ("+" | "-")? primary
+// unary = ("+" | "-")? unary | primary
 Node *unary() {
   if (consume("+"))
     return primary();
