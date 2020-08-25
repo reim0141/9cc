@@ -216,6 +216,15 @@ Node *new_unary(NodeKind kind, Node *expr) {
   return node;
 }
 
+char* duplicate(char *str, int len) {
+
+    char *buffer = malloc(len + 1);
+    memcpy(buffer, str, len);
+    buffer[len] = '\0';
+
+    return buffer;
+}
+
 // program = stmt*
 Node *program() {
   locals = NULL;
@@ -374,7 +383,7 @@ Node *unary() {
   return primary();
 }
 
-// primary = "(" expr ")" | ident | num
+// primary = "(" expr ")" | ident ("(" ")")? | num
 Node *primary(){
   if (consume("(")) {
     Node *node = expr();
@@ -384,6 +393,12 @@ Node *primary(){
   
   Token *tok = consume_ident();
   if (tok) {
+    if (consume("(")) {
+      expect(")");
+      Node *node = new_branch(ND_FUNCALL);
+      node->funcname = duplicate(tok->str, tok->len);
+      return node;
+    }
     Node *node = calloc(1, sizeof(Node));
     node->kind = ND_LVAR;
 
