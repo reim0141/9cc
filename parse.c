@@ -137,7 +137,7 @@ Token *tokenize() {
       p += 2;
       continue;
     }
-    if (strchr("+-*/()<>;={},", *p)) {
+    if (strchr("+-*/()<>;={},&", *p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
@@ -194,7 +194,6 @@ Node *mul();
 Node *unary();
 Node *primary();
 
-Node *code[100];
 
 LVar *find_lvar(Token *tok) {
   for (LVar *var = locals; var; var = var->next)
@@ -377,15 +376,20 @@ Node *mul() {
   }
 }
 
-// unary = ("+" | "-")? unary | primary
+// unary = ("+" | "-" | "*" | "&")? unary | primary
 Node *unary() {
   if (consume("+"))
-    return primary();
+    return unary();
   if (consume("-"))
-    return new_node(ND_SUB, new_node_num(0), unary());  
+    return new_node(ND_SUB, new_node_num(0), unary()); 
+  if (consume("&"))
+    return new_unary(ND_ADDR, unary());
+  if (consume("*"))
+    return new_unary(ND_DEREF, unary());
   
   return primary();
 }
+
 // func_args = "(" (assign ("," assign)*? ")"
 Node *func_args() {
   if(consume(")"))

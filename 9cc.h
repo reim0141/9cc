@@ -70,6 +70,9 @@ typedef enum {
   ND_WHILE, // while
   ND_BLOCK, // {...}
   ND_FUNCALL, // Function call
+  ND_ADDR,  //unary &
+  ND_DEREF, // unary *
+  ND_EXPR_STMT, // Expression statement
 } NodeKind;
 
 typedef struct Node Node;
@@ -105,4 +108,5 @@ struct Node {
 //extern Node *code[100];
 
 Node *program();
+void gen(Node *node);
 void codegen(Node *node);
