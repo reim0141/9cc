@@ -173,8 +173,8 @@ void codegen(Node *node) {
   printf("  sub rsp, %d\n", offset);
 
 
-  for (int i = 0; code[i]; i++) {
-    gen(code[i]);
+  for (Node* n = node; n; n = n->next) {
+    gen(n);
   }
 
 

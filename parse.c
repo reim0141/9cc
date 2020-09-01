@@ -228,10 +228,14 @@ char* duplicate(char *str, int len) {
 // program = stmt*
 Node *program() {
   locals = NULL;
-  int i = 0;
-  while (!at_eof())
-    code[i++] = stmt();
-  code[i] = NULL;
+  Node head = {};
+  Node *cur = &head;
+
+  while (!at_eof()){
+    cur->next = stmt();
+    cur = cur->next;
+  }
+  return head.next;
 }
 
 // stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"

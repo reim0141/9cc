@@ -102,7 +102,7 @@ struct Node {
 // unary      = ("+" | "-")? primary
 // primary    = num | ident | "(" expr ")"Node *expr();
 
-extern Node *code[100];
+//extern Node *code[100];
 
 Node *program();
 void codegen(Node *node);
