@@ -184,16 +184,6 @@ Node *new_node_num(int val) {
   return node;
 }
 
-Node *stmt();
-Node *expr();
-Node *assign();
-Node *equality();
-Node *relational();
-Node *add();
-Node *mul();
-Node *unary();
-Node *primary();
-
 
 LVar *find_lvar(Token *tok) {
   for (LVar *var = locals; var; var = var->next)
@@ -215,7 +205,7 @@ Node *new_unary(NodeKind kind, Node *expr) {
   return node;
 }
 
-char* duplicate(char *str, int len) {
+char *duplicate(char *str, int len) {
 
     char *buffer = malloc(len + 1);
     memcpy(buffer, str, len);
@@ -224,21 +214,63 @@ char* duplicate(char *str, int len) {
     return buffer;
 }
 
-// program = stmt*
-Node *program() {
-  locals = NULL;
-  Node head = {};
-  Node *cur = &head;
+char *expect_ident() { 
+  if (token->kind != TK_IDENT)
+    error_at(token->str, "expected an identifier");
+  char *s = duplicate(token->str, token->len);
+  token = token->next;
+  return s;
+}
+
+static Function *function();
+static Node *stmt();
+static Node *expr();
+static Node *assign();
+static Node *equality();
+static Node *relational();
+static Node *add();
+static Node *mul();
+static Node *unary();
+static Node *primary();
+
+
+// program = function*
+Function *program() {
+  Function head = {};
+  Function *cur = &head;
 
   while (!at_eof()){
-    cur->next = stmt();
+    cur->next = function();
     cur = cur->next;
   }
   return head.next;
 }
 
+// function = ident "(" ")" "{" stmt* "}"
+static Function *function() {
+  locals = NULL;
+  char *name = expect_ident();
+  expect("(");
+  expect(")");
+  expect("{");
+  Node head = {};
+  Node *cur = &head;
+
+  while (!consume("}")){
+    cur->next = stmt();
+    cur = cur->next;
+  }
+  Function *fn = calloc(1, sizeof(Function));
+  fn->name = name;
+  fn->node = head.next;
+  fn->locals = locals;
+  
+  return fn;
+  
+}
+
 // stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"
-Node *stmt() {
+static Node *stmt() {
   if (consume("return")) {
     Node *node = new_unary(ND_RETURN, expr());
     expect(";");
@@ -301,12 +333,12 @@ Node *stmt() {
 }
 
 // expr = assign
-Node *expr() {
+static Node *expr() {
   return assign();
 }
 
 // assign = equality ("=" assign)?
-Node *assign() {
+static Node *assign() {
   Node *node = equality();
 
   if (consume("=")){
@@ -317,7 +349,7 @@ Node *assign() {
 }
 
 // equality = relational ("==" relational | "!=" relational)*
-Node *equality() {
+static Node *equality() {
   Node *node = relational();
 
   for (;;) {
@@ -331,7 +363,7 @@ Node *equality() {
 }
 
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-Node *relational() {
+static Node *relational() {
   Node *node = add();
 
   for (;;) {
@@ -349,7 +381,7 @@ Node *relational() {
 }
 
 // add = mul ("+" mul | "-" mul)*
-Node *add() {
+static Node *add() {
   Node *node = mul();
 
   for (;;) {
@@ -363,7 +395,7 @@ Node *add() {
 }
 
 // mul = unary ("*" unary | "/" unary)*
-Node *mul() {
+static Node *mul() {
   Node *node = unary();
 
   for (;;) {
@@ -377,7 +409,7 @@ Node *mul() {
 }
 
 // unary = ("+" | "-" | "*" | "&")? unary | primary
-Node *unary() {
+static Node *unary() {
   if (consume("+"))
     return unary();
   if (consume("-"))
@@ -391,7 +423,7 @@ Node *unary() {
 }
 
 // func_args = "(" (assign ("," assign)*? ")"
-Node *func_args() {
+static Node *func_args() {
   if(consume(")"))
     return NULL;
 
@@ -408,7 +440,7 @@ Node *func_args() {
 
 
 // primary = "(" expr ")" | ident func-args? | num
-Node *primary(){
+static Node *primary(){
   if (consume("(")) {
     Node *node = expr();
     expect(")");
@@ -428,19 +460,15 @@ Node *primary(){
 
     LVar *lvar = find_lvar(tok);
     if (lvar) {
-      node->offset = lvar->offset;
+      node->var = lvar;
     }
     else {
       lvar = calloc(1, sizeof(LVar));
       lvar->next = locals;
       lvar->name = tok->str;
       lvar->len = tok->len;
-      if (locals == NULL)
-        lvar->offset = 8;
-      else 
-        lvar->offset = locals->offset +8;
-      node->offset = lvar->offset;
       locals = lvar;
+      node->var = lvar;
     }
     return node;
   }

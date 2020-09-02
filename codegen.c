@@ -1,6 +1,7 @@
 #include "9cc.h"
 
 static int labelseq = 1;
+static char *funcname;
 static char *argreg[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 void gen_lval(Node *node) {
@@ -16,7 +17,7 @@ void gen_lval(Node *node) {
 void gen_addr(Node *node) {
   switch(node->kind) {
   case ND_LVAR:
-    printf("  lea rax, [rbp-%d]\n", node->offset);
+    printf("  lea rax, [rbp-%d]\n", node->var->offset);
     printf("  push rax\n");
     return; 
   case ND_DEREF:
@@ -33,7 +34,7 @@ void gen(Node *node) {
   case ND_RETURN:
     gen(node->lhs);
     printf("  pop rax\n");
-    printf("  jmp .L.return\n");
+    printf("  jmp .L.return.%s\n", funcname);
     return;
   case ND_LVAR:
     gen_addr(node);
@@ -128,7 +129,23 @@ void gen(Node *node) {
     for (int i = nargs - 1; i >= 0; i--)
       printf("  pop %s\n", argreg[i]);
     
+    // We need to align RSP to a 16 byte boundary before
+    // calling a function because it is an ABI requirement.
+    // RAX is set to 0 for variadic function.
+    int seq = labelseq++;
+    printf("  mov rax, rsp\n");
+    printf("  and rax, 15\n");
+    printf("  jnz .L.call.%d\n", seq);
+    printf("  mov rax, 0\n");
     printf("  call %s\n", node->funcname);
+    printf("  jmp .L.end.%d\n", seq);
+    printf(".L.call.%d:\n", seq);
+    printf("  sub rsp, 8\n");
+    printf("  mov rax, 0\n");
+
+    printf("  call %s\n", node->funcname);
+    printf("  add rsp, 8\n");
+    printf(".L.end.%d:\n", seq);;
     printf("  push rax\n");
     return;
   }
@@ -179,30 +196,30 @@ void gen(Node *node) {
   printf("  push rax\n");
 }
 
-void codegen(Node *node) {
+void codegen(Function *prog) {
   printf(".intel_syntax noprefix\n");
-  printf(".global main\n");
-  printf("main:\n");
-  
-  int offset = 0;
-  for (LVar *var = locals; var; var = var->next) {
-    offset +=8;
-  }
-  
-  printf("  push rbp\n");
-  printf("  mov rbp, rsp\n");
-  printf("  sub rsp, %d\n", offset);
+
+  for (Function *fn = prog; fn; fn = fn->next) {
+    printf(".global %s\n", fn->name);
+    printf("%s:\n", fn->name);
+    funcname = fn->name;
+    
+    printf("  push rbp\n");
+    printf("  mov rbp, rsp\n");
+    printf("  sub rsp, %d\n", fn->stack_size);
 
 
-  for (Node* n = node; n; n = n->next) {
-    gen(n);
-  }
+    for (Node* node = fn->node; node; node = node->next) {
+      gen(node);
+    }
 
 
-  // A result must be at the top of the stack, so pop it
-  // to RAX to make it a program exit code.
-  printf(".L.return:\n");
-  printf("  mov rsp, rbp\n");
-  printf("  pop rbp\n");
-  printf("  ret\n");
+    // A result must be at the top of the stack, so pop it
+    // to RAX to make it a program exit code.
+    printf(".L.return.%s:\n", funcname);
+    printf("  mov rsp, rbp\n");
+    printf("  pop rbp\n");
+    printf("  ret\n");
+  } 
 }
+  

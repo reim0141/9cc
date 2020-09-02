@@ -91,6 +91,8 @@ struct Node {
   Node *body;
   char *funcname;
   Node *args;
+
+  LVar *var;
 };
 
 
@@ -106,7 +108,16 @@ struct Node {
 // primary    = num | ident | "(" expr ")"Node *expr();
 
 //extern Node *code[100];
+typedef struct Function Function;
 
-Node *program();
+struct Function {
+  Function *next;
+  char *name;
+  Node *node;
+  LVar *locals;
+  int stack_size;
+};
+
+Function *program();
 void gen(Node *node);
-void codegen(Node *node);
+void codegen(Function *prog);
