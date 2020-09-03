@@ -2,7 +2,7 @@
 
 char *user_input;
 Token *token;
-LVar *locals;
+static VarList *locals;
 
 //Reports an error and exit
 void error(char *fmt, ...) {
@@ -86,6 +86,25 @@ bool is_alpha(char c ) {
 bool is_alnum(char c) {
   return is_alpha(c) || ('0' <= c && c <= '9');
 }
+static char *starts_with_reserved(char *p) {
+  static char *kw[] = {"return", "if", "while", "for", "int"};
+
+  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
+    int len = strlen(kw[i]);
+    if (startswith(p, kw[i]) && !is_alnum(p[len]))
+      return kw[i];
+  }
+  
+  static char *ops[] = {"==", "!=", "<=", ">="};
+
+  for (int i = 0; i < sizeof(ops) / sizeof(*ops); i++) {
+    int len = strlen(ops[i]);
+    if (startswith(p, ops[i]))
+      return ops[i];
+  }
+  return NULL;
+}
+
 
 // Tokenize Input
 Token *tokenize() {
@@ -100,43 +119,50 @@ Token *tokenize() {
       p++;
       continue;
     }
+    char *kw = starts_with_reserved(p);
+    if (kw) {
+      int len = strlen(kw);
+      cur = new_token(TK_RESERVED, cur, p, len);
+      p += len;
+      continue;
+    }
     
-    if (startswith(p,"if") && !is_alnum(p[2])) {
-      cur = new_token(TK_RESERVED, cur, p, 2);
-      p += 2;
-      continue;
-    }
-    if (startswith(p,"else") && !is_alnum(p[4])) {
-      cur = new_token(TK_RESERVED, cur, p, 4);
-      p += 4;
-      continue;
-    }
-
-
-   if (startswith(p,"for") && !is_alnum(p[3])) {
-      cur = new_token(TK_RESERVED, cur, p, 3);
-      p += 3;
-      continue;
-    }
-
-   if (startswith(p,"while") && !is_alnum(p[5])) {
-      cur = new_token(TK_RESERVED, cur, p, 5);
-      p += 5;
-      continue;
-    }
-
-    if (startswith(p, "return") && !is_alnum(p[6])) {
-      cur = new_token(TK_RESERVED, cur, p, 6);
-      p += 6;
-      continue;
-    }
-
-
-    if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") || startswith(p, ">=")) {
-      cur = new_token(TK_RESERVED, cur, p, 2);
-      p += 2;
-      continue;
-    }
+//    if (startswith(p,"if") && !is_alnum(p[2])) {
+//      cur = new_token(TK_RESERVED, cur, p, 2);
+//      p += 2;
+//      continue;
+//    }
+//    if (startswith(p,"else") && !is_alnum(p[4])) {
+//      cur = new_token(TK_RESERVED, cur, p, 4);
+//      p += 4;
+//      continue;
+//    }
+//
+//
+//   if (startswith(p,"for") && !is_alnum(p[3])) {
+//      cur = new_token(TK_RESERVED, cur, p, 3);
+//      p += 3;
+//      continue;
+//    }
+//
+//   if (startswith(p,"while") && !is_alnum(p[5])) {
+//      cur = new_token(TK_RESERVED, cur, p, 5);
+//      p += 5;
+//      continue;
+//    }
+//
+//    if (startswith(p, "return") && !is_alnum(p[6])) {
+//      cur = new_token(TK_RESERVED, cur, p, 6);
+//      p += 6;
+//      continue;
+//    }
+//
+//
+//    if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") || startswith(p, ">=")) {
+//      cur = new_token(TK_RESERVED, cur, p, 2);
+//      p += 2;
+//      continue;
+//    }
     if (strchr("+-*/()<>;={},&", *p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
@@ -186,9 +212,11 @@ Node *new_node_num(int val) {
 
 
 LVar *find_lvar(Token *tok) {
-  for (LVar *var = locals; var; var = var->next)
-    if (var->len == tok->len && !memcmp(tok->str, var->name, var->len))
+  for (VarList *vl = locals; vl; vl = vl->next) {
+    LVar *var = vl->var;
+    if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
       return var;
+  }
   return NULL;
 }
 
@@ -222,6 +250,17 @@ char *expect_ident() {
   return s;
 }
 
+static LVar *new_lvar(char *name) {
+  LVar *var = calloc(1, sizeof(LVar));
+  var->name = name;
+
+  VarList *vl = calloc(1, sizeof(VarList));
+  vl->var = var;
+  vl->next = locals;
+  locals = vl;
+  return var;
+}
+
 static Function *function();
 static Node *stmt();
 static Node *expr();
@@ -246,12 +285,32 @@ Function *program() {
   return head.next;
 }
 
-// function = ident "(" ")" "{" stmt* "}"
+static VarList *read_func_params(void) {
+  if (consume(")"))
+    return NULL;
+
+  VarList *head = calloc(1, sizeof(VarList));
+  head->var = new_lvar(expect_ident());
+  VarList *cur = head;
+
+  while (!consume(")")) {
+    expect(",");
+    cur->next = calloc(1, sizeof(VarList));
+    cur->next->var = new_lvar(expect_ident());
+    cur = cur->next;
+  }
+  return head;
+}
+
+// function = basetype ident "(" params? ")" "{" stmt* "}"
+// params = ident ( "," ident)*
 static Function *function() {
   locals = NULL;
-  char *name = expect_ident();
+  Function *fn = calloc(1, sizeof(Function));
+  fn->name = expect_ident();
+
   expect("(");
-  expect(")");
+  fn->params = read_func_params();
   expect("{");
   Node head = {};
   Node *cur = &head;
@@ -260,8 +319,6 @@ static Function *function() {
     cur->next = stmt();
     cur = cur->next;
   }
-  Function *fn = calloc(1, sizeof(Function));
-  fn->name = name;
   fn->node = head.next;
   fn->locals = locals;
   
@@ -463,11 +520,7 @@ static Node *primary(){
       node->var = lvar;
     }
     else {
-      lvar = calloc(1, sizeof(LVar));
-      lvar->next = locals;
-      lvar->name = tok->str;
-      lvar->len = tok->len;
-      locals = lvar;
+      lvar = new_lvar(duplicate(tok->str, tok->len));
       node->var = lvar;
     }
     return node;
@@ -475,5 +528,7 @@ static Node *primary(){
 
   return new_node_num(expect_number());
 }
+
+
 
 

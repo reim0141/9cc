@@ -24,6 +24,8 @@ struct Token {
   int len;         // length of token
 };
 
+typedef struct Type Type;
+
 typedef struct LVar LVar;
 
 struct LVar {
@@ -31,9 +33,14 @@ struct LVar {
   char *name;
   int len;
   int offset;
+  Type *ty;
 };
 
-
+typedef struct VarList VarList;
+struct VarList {
+  VarList *next;
+  LVar *var;
+};
 
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
@@ -46,7 +53,7 @@ Token *tokenize();
 
 extern char *user_input;
 extern Token *token;
-extern LVar *locals;
+//extern LVar *locals;
 
 //
 // Parser
@@ -73,7 +80,19 @@ typedef enum {
   ND_ADDR,  //unary &
   ND_DEREF, // unary *
   ND_EXPR_STMT, // Expression statement
+  ND_NULL,  // Empty statement
 } NodeKind;
+
+typedef enum {INT, PTR} TypeKind;
+
+struct Type {
+  TypeKind kind;
+  Type *base;
+};
+
+extern Type *int_type;
+
+Type *pinter_to(Type *base);
 
 typedef struct Node Node;
 struct Node {
@@ -114,9 +133,11 @@ struct Function {
   Function *next;
   char *name;
   Node *node;
-  LVar *locals;
+  VarList *locals;
+  VarList *params;
   int stack_size;
 };
+
 
 Function *program();
 void gen(Node *node);
