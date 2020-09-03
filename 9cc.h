@@ -60,8 +60,11 @@ extern Token *token;
 //
 
 typedef enum {
-  ND_ADD, // +
+  ND_ADD, // num + num
+  ND_PTR_ADD,  // ptr + num or num + ptr
   ND_SUB, // -
+  ND_PTR_SUB,  // ptr - num 
+  ND_PTR_DIFF,  // ptr - ptr
   ND_MUL, // *
   ND_DIV, // /
   ND_EQ,  // ==
@@ -83,17 +86,6 @@ typedef enum {
   ND_NULL,  // Empty statement
 } NodeKind;
 
-typedef enum {INT, PTR} TypeKind;
-
-struct Type {
-  TypeKind kind;
-  Type *base;
-};
-
-extern Type *int_type;
-
-Type *pinter_to(Type *base);
-
 typedef struct Node Node;
 struct Node {
   NodeKind kind;
@@ -110,7 +102,7 @@ struct Node {
   Node *body;
   char *funcname;
   Node *args;
-
+  Type *ty; // Type, e.g. int or pointer to int
   LVar *var;
 };
 
@@ -140,5 +132,20 @@ struct Function {
 
 
 Function *program();
+
+// typing.c
+typedef enum {TY_INT, TY_PTR} TypeKind;
+
+struct Type {
+  TypeKind kind;
+  Type *base;
+};
+
+extern Type *int_type;
+Type *pinter_to(Type *base);
+bool is_integer(Type *ty);
+void add_type(Node *node);
+
+
 void gen(Node *node);
 void codegen(Function *prog);

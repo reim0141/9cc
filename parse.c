@@ -263,6 +263,7 @@ static LVar *new_lvar(char *name) {
 
 static Function *function();
 static Node *stmt();
+static Node *stmt2();
 static Node *expr();
 static Node *assign();
 static Node *equality();
@@ -326,8 +327,14 @@ static Function *function() {
   
 }
 
-// stmt = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"
 static Node *stmt() {
+  Node *node = stmt2();
+  add_type(node);
+  return node;
+}
+
+// stmt2 = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"
+static Node *stmt2() {
   if (consume("return")) {
     Node *node = new_unary(ND_RETURN, expr());
     expect(";");
@@ -436,16 +443,38 @@ static Node *relational() {
       return node;
   }
 }
+static Node *new_add(Node *lhs, Node *rhs) {
+  add_type(lhs);
+  add_type(rhs);
 
+  if (is_integer(lhs->ty) && is_integer(rhs->ty))
+    return new_node(ND_ADD, lhs, rhs);
+  if (lhs->ty->base && is_integer(rhs->ty))
+    return new_node(ND_PTR_ADD, lhs, rhs);
+  if (is_integer(lhs->ty) && rhs->ty->base)
+    return new_node(ND_PTR_ADD, rhs, lhs);
+}
+
+static Node *new_sub(Node *lhs, Node *rhs) {
+  add_type(lhs);
+  add_type(rhs);
+
+  if (is_integer(lhs->ty) && is_integer(rhs->ty))
+    return new_node(ND_SUB, lhs, rhs);
+  if (lhs->ty->base && is_integer(rhs->ty))
+    return new_node(ND_PTR_SUB, lhs, rhs);
+  if (lhs->ty->base && rhs->ty->base)
+    return new_node(ND_PTR_DIFF, lhs, rhs);
+}
 // add = mul ("+" mul | "-" mul)*
 static Node *add() {
   Node *node = mul();
 
   for (;;) {
     if (consume("+"))
-      node = new_node(ND_ADD, node, mul());
+      node = new_add(node, mul());
     else if (consume("-"))
-      node = new_node(ND_SUB, node, mul());
+      node = new_sub(node, mul());
     else
       return node;
   }
