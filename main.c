@@ -8,7 +8,6 @@ int main(int argc, char **argv) {
   
   // tokenize and parse
   user_input = argv[1];
-
   token = tokenize();
   
   Function *prog = program(); 

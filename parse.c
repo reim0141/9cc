@@ -1,258 +1,55 @@
 #include "9cc.h"
 
-char *user_input;
-Token *token;
+// All local variable instances created during parsing are
+// accumulated to this list.
 static VarList *locals;
 
-//Reports an error and exit
-void error(char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-// Reports an error location and exit.
-void error_at(char *loc, char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-
-  int pos = loc - user_input;
-  fprintf(stderr, "%s\n", user_input);
-  fprintf(stderr, "%*s",pos,"");
-  fprintf(stderr, "^ ");
-  vfprintf(stderr, fmt, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-
-// Check if next token is expected symbol 
-bool consume(char *op) {
-  if (token->kind != TK_RESERVED || strlen(op) != token->len || memcmp(token->str, op, token->len))
-    return false;
-  token = token->next;
-  return true;
-}
-
-Token *consume_ident() {
-  if (token->kind != TK_IDENT) 
-    return NULL;
-  
-  Token *t = token;
-  token = token->next;
-  return t;
-}
-
-// Check if next token is expected symbol 
-void expect(char *op) {
-  if (token->kind != TK_RESERVED || strlen(op) != token->len || memcmp(token->str, op, token->len))
-    error_at(token->str,"expected '%c'",op);
-  token = token->next;
-}
-
-// Check if next token is num 
-int expect_number() {
-  if (token->kind != TK_NUM)
-    error_at(token->str,"expected a number");
-  int val = token->val;
-  token = token->next;
-  return val;
-}
-
-bool at_eof() {
-  return token->kind == TK_EOF;
-}
-
-// Create new token 
-Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
-  Token *tok = calloc(1, sizeof(Token));
-  tok->kind = kind;
-  tok->str = str;
-  tok->len = len;
-  cur->next = tok;
-  return tok;
-}
-
-bool startswith(char *p, char *q) {
-  return memcmp(p, q, strlen(q)) == 0;
-}
-
-bool is_alpha(char c ) {
-  return ('a' <= c && c <='z') || ('A' <= c && c <= 'Z') || c == '_';
-}
-
-bool is_alnum(char c) {
-  return is_alpha(c) || ('0' <= c && c <= '9');
-}
-static char *starts_with_reserved(char *p) {
-  static char *kw[] = {"return", "if", "while", "for", "int"};
-
-  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-    int len = strlen(kw[i]);
-    if (startswith(p, kw[i]) && !is_alnum(p[len]))
-      return kw[i];
-  }
-  
-  static char *ops[] = {"==", "!=", "<=", ">="};
-
-  for (int i = 0; i < sizeof(ops) / sizeof(*ops); i++) {
-    int len = strlen(ops[i]);
-    if (startswith(p, ops[i]))
-      return ops[i];
-  }
-  return NULL;
-}
-
-
-// Tokenize Input
-Token *tokenize() {
-  char *p = user_input;
-  Token head;
-  head.next = NULL;
-  Token *cur = &head;
-
-  while (*p){
-    // skip space
-    if (isspace(*p)) {
-      p++;
-      continue;
-    }
-    char *kw = starts_with_reserved(p);
-    if (kw) {
-      int len = strlen(kw);
-      cur = new_token(TK_RESERVED, cur, p, len);
-      p += len;
-      continue;
-    }
-    
-//    if (startswith(p,"if") && !is_alnum(p[2])) {
-//      cur = new_token(TK_RESERVED, cur, p, 2);
-//      p += 2;
-//      continue;
-//    }
-//    if (startswith(p,"else") && !is_alnum(p[4])) {
-//      cur = new_token(TK_RESERVED, cur, p, 4);
-//      p += 4;
-//      continue;
-//    }
-//
-//
-//   if (startswith(p,"for") && !is_alnum(p[3])) {
-//      cur = new_token(TK_RESERVED, cur, p, 3);
-//      p += 3;
-//      continue;
-//    }
-//
-//   if (startswith(p,"while") && !is_alnum(p[5])) {
-//      cur = new_token(TK_RESERVED, cur, p, 5);
-//      p += 5;
-//      continue;
-//    }
-//
-//    if (startswith(p, "return") && !is_alnum(p[6])) {
-//      cur = new_token(TK_RESERVED, cur, p, 6);
-//      p += 6;
-//      continue;
-//    }
-//
-//
-//    if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") || startswith(p, ">=")) {
-//      cur = new_token(TK_RESERVED, cur, p, 2);
-//      p += 2;
-//      continue;
-//    }
-    if (strchr("+-*/()<>;={},&", *p)) {
-      cur = new_token(TK_RESERVED, cur, p++, 1);
-      continue;
-    }
-  
-    if (isdigit(*p)) {
-      cur = new_token(TK_NUM, cur, p, 0);
-      char *q = p;
-      cur->val = strtol(p, &p, 10);
-      cur->len = p - q;
-      continue;
-    }
-
-    if (is_alpha(*p)) {
-      char *q = p++;
-      while (is_alnum(*p))
-        p++;
-      cur = new_token(TK_IDENT, cur, q, p - q);
-      continue;
-    }
-
-    error_at(p,"Invalid token");
-  }
-
-  new_token(TK_EOF, cur, p, 0);
-  return head.next;
-}
-
-//
-// Parser
-//
-
-Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
-  Node *node = calloc(1, sizeof(Node));
-  node->kind = kind;
-  node->lhs = lhs;
-  node->rhs = rhs;
-  return node;
-}
-
-Node *new_node_num(int val) {
-  Node *node = calloc(1,sizeof(Node));
-  node->kind = ND_NUM;
-  node->val = val;
-  return node;
-}
-
-
-LVar *find_lvar(Token *tok) {
+// Find a local variable by name.
+static Var *find_var(Token *tok) {
   for (VarList *vl = locals; vl; vl = vl->next) {
-    LVar *var = vl->var;
+    Var *var = vl->var;
     if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
       return var;
   }
   return NULL;
 }
 
-Node *new_branch(NodeKind kind) {
+static Node *new_node(NodeKind kind, Token *tok) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
+  node->tok = tok;
   return node;
 }
 
-Node *new_unary(NodeKind kind, Node *expr) {
-  Node *node = calloc(1, sizeof(Node));
-  node->kind = kind;
+static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs, Token *tok) {
+  Node *node = new_node(kind, tok);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+static Node *new_unary(NodeKind kind, Node *expr, Token *tok) {
+  Node *node = new_node(kind, tok);
   node->lhs = expr;
   return node;
 }
 
-char *duplicate(char *str, int len) {
-
-    char *buffer = malloc(len + 1);
-    memcpy(buffer, str, len);
-    buffer[len] = '\0';
-
-    return buffer;
+static Node *new_num(long val, Token *tok) {
+  Node *node = new_node(ND_NUM, tok);
+  node->val = val;
+  return node;
 }
 
-char *expect_ident() { 
-  if (token->kind != TK_IDENT)
-    error_at(token->str, "expected an identifier");
-  char *s = duplicate(token->str, token->len);
-  token = token->next;
-  return s;
+static Node *new_var_node(Var *var, Token *tok) {
+  Node *node = new_node(ND_VAR, tok);
+  node->var = var;
+  return node;
 }
 
-static LVar *new_lvar(char *name) {
-  LVar *var = calloc(1, sizeof(LVar));
+static Var *new_lvar(char *name, Type *ty) {
+  Var *var = calloc(1, sizeof(Var));
   var->name = name;
+  var->ty = ty;
 
   VarList *vl = calloc(1, sizeof(VarList));
   vl->var = var;
@@ -261,110 +58,156 @@ static LVar *new_lvar(char *name) {
   return var;
 }
 
-static Function *function();
-static Node *stmt();
-static Node *stmt2();
-static Node *expr();
-static Node *assign();
-static Node *equality();
-static Node *relational();
-static Node *add();
-static Node *mul();
-static Node *unary();
-static Node *primary();
-
+static Function *function(void);
+static Node *declaration(void);
+static Node *stmt(void);
+static Node *stmt2(void);
+static Node *expr(void);
+static Node *assign(void);
+static Node *equality(void);
+static Node *relational(void);
+static Node *add(void);
+static Node *mul(void);
+static Node *unary(void);
+static Node *primary(void);
 
 // program = function*
-Function *program() {
+Function *program(void) {
   Function head = {};
   Function *cur = &head;
 
-  while (!at_eof()){
+  while (!at_eof()) {
     cur->next = function();
     cur = cur->next;
   }
   return head.next;
 }
 
+// basetype = "int" "*"*
+static Type *basetype(void) {
+  expect("int");
+  Type *ty = int_type;
+  while (consume("*"))
+    ty = pointer_to(ty);
+  return ty;
+}
+
+static VarList *read_func_param(void) {
+  VarList *vl = calloc(1, sizeof(VarList));
+  Type *ty = basetype();
+  vl->var = new_lvar(expect_ident(), ty);
+  return vl;
+}
+
 static VarList *read_func_params(void) {
   if (consume(")"))
     return NULL;
 
-  VarList *head = calloc(1, sizeof(VarList));
-  head->var = new_lvar(expect_ident());
+  VarList *head = read_func_param();
   VarList *cur = head;
 
   while (!consume(")")) {
     expect(",");
-    cur->next = calloc(1, sizeof(VarList));
-    cur->next->var = new_lvar(expect_ident());
+    cur->next = read_func_param();
     cur = cur->next;
   }
+
   return head;
 }
 
 // function = basetype ident "(" params? ")" "{" stmt* "}"
-// params = ident ( "," ident)*
-static Function *function() {
+// params   = param ("," param)*
+// param    = basetype ident
+static Function *function(void) {
   locals = NULL;
-  Function *fn = calloc(1, sizeof(Function));
-  fn->name = expect_ident();
 
+  Function *fn = calloc(1, sizeof(Function));
+  basetype();
+  fn->name = expect_ident();
   expect("(");
   fn->params = read_func_params();
   expect("{");
+
   Node head = {};
   Node *cur = &head;
-
-  while (!consume("}")){
+  while (!consume("}")) {
     cur->next = stmt();
     cur = cur->next;
   }
+
   fn->node = head.next;
   fn->locals = locals;
-  
   return fn;
-  
 }
 
-static Node *stmt() {
+// declaration = basetype ident ("=" expr) ";"
+static Node *declaration(void) {
+  Token *tok = token;
+  Type *ty = basetype();
+  Var *var = new_lvar(expect_ident(), ty);
+
+  if (consume(";"))
+    return new_node(ND_NULL, tok);
+
+  expect("=");
+  Node *lhs = new_var_node(var, tok);
+  Node *rhs = expr();
+  expect(";");
+  Node *node = new_binary(ND_ASSIGN, lhs, rhs, tok);
+  return new_unary(ND_EXPR_STMT, node, tok);
+}
+
+static Node *read_expr_stmt(void) {
+  Token *tok = token;
+  return new_unary(ND_EXPR_STMT, expr(), tok);
+}
+
+static Node *stmt(void) {
   Node *node = stmt2();
   add_type(node);
   return node;
 }
 
-// stmt2 = expr ";" | "return" expr ";" | "if" "(" expr ")" stmt | "for" "(" expr? ";" expr? ";" expr? ")" stmt | "while" "(" expr ")" stmt | "{" stmt "}"
-static Node *stmt2() {
-  if (consume("return")) {
-    Node *node = new_unary(ND_RETURN, expr());
+// stmt2 = "return" expr ";"
+//       | "if" "(" expr ")" stmt ("else" stmt)?
+//       | "while" "(" expr ")" stmt
+//       | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+//       | "{" stmt* "}"
+//       | declaration
+//       | expr ";"
+static Node *stmt2(void) {
+  Token *tok;
+  if (tok = consume("return")) {
+    Node *node = new_unary(ND_RETURN, expr(), tok);
     expect(";");
     return node;
   }
-  if (consume("if")) {
-    Node *node = new_branch(ND_IF);
+
+  if (tok = consume("if")) {
+    Node *node = new_node(ND_IF, tok);
     expect("(");
     node->cond = expr();
     expect(")");
     node->then = stmt();
-
-    if (consume("else")) 
+    if (consume("else"))
       node->els = stmt();
     return node;
   }
-  if (consume("while")) {
-    Node *node = new_branch(ND_WHILE);
+
+  if (tok = consume("while")) {
+    Node *node = new_node(ND_WHILE, tok);
     expect("(");
     node->cond = expr();
     expect(")");
     node->then = stmt();
-
     return node;
   }
-  if (consume("for")) {
-    Node *node = new_branch(ND_FOR);
+
+  if (tok = consume("for")) {
+    Node *node = new_node(ND_FOR, tok);
     expect("(");
     if (!consume(";")) {
-      node->init = expr();
+      node->init = read_expr_stmt();
       expect(";");
     }
     if (!consume(";")) {
@@ -372,151 +215,162 @@ static Node *stmt2() {
       expect(";");
     }
     if (!consume(")")) {
-      node->inc = expr();
+      node->inc = read_expr_stmt();
       expect(")");
     }
     node->then = stmt();
     return node;
   }
-  if (consume("{")) {
+
+  if (tok = consume("{")) {
     Node head = {};
     Node *cur = &head;
+
     while (!consume("}")) {
       cur->next = stmt();
       cur = cur->next;
     }
-    Node *node = new_branch(ND_BLOCK);
+
+    Node *node = new_node(ND_BLOCK, tok);
     node->body = head.next;
     return node;
   }
-  else {
-    Node *node = expr();
-    expect(";");
-    return node;
-  }
+
+  if (tok = peek("int"))
+    return declaration();
+
+  Node *node = read_expr_stmt();
+  expect(";");
+  return node;
 }
 
 // expr = assign
-static Node *expr() {
+static Node *expr(void) {
   return assign();
 }
 
 // assign = equality ("=" assign)?
-static Node *assign() {
+static Node *assign(void) {
   Node *node = equality();
-
-  if (consume("=")){
-    node = new_node(ND_ASSIGN, node, assign());
-  }
-
+  Token *tok;
+  if (tok = consume("="))
+    node = new_binary(ND_ASSIGN, node, assign(), tok);
   return node;
 }
 
 // equality = relational ("==" relational | "!=" relational)*
-static Node *equality() {
+static Node *equality(void) {
   Node *node = relational();
+  Token *tok;
 
   for (;;) {
-    if (consume("=="))
-      node = new_node(ND_EQ, node, relational());
-    else if (consume("!="))
-      node = new_node(ND_NE, node, relational());
+    if (tok = consume("=="))
+      node = new_binary(ND_EQ, node, relational(), tok);
+    else if (tok = consume("!="))
+      node = new_binary(ND_NE, node, relational(), tok);
     else
       return node;
   }
 }
 
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-static Node *relational() {
+static Node *relational(void) {
   Node *node = add();
+  Token *tok;
 
   for (;;) {
-    if (consume("<"))
-      node = new_node(ND_LT, node, add());
-    else if (consume("<="))
-      node = new_node(ND_LE, node, add());
-    else if (consume(">"))
-      node = new_node(ND_LT, add(), node);
-    else if (consume(">="))
-      node = new_node(ND_LE, add(), node);
+    if (tok = consume("<"))
+      node = new_binary(ND_LT, node, add(), tok);
+    else if (tok = consume("<="))
+      node = new_binary(ND_LE, node, add(), tok);
+    else if (tok = consume(">"))
+      node = new_binary(ND_LT, add(), node, tok);
+    else if (tok = consume(">="))
+      node = new_binary(ND_LE, add(), node, tok);
     else
       return node;
   }
 }
-static Node *new_add(Node *lhs, Node *rhs) {
+
+static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
   add_type(lhs);
   add_type(rhs);
 
   if (is_integer(lhs->ty) && is_integer(rhs->ty))
-    return new_node(ND_ADD, lhs, rhs);
+    return new_binary(ND_ADD, lhs, rhs, tok);
   if (lhs->ty->base && is_integer(rhs->ty))
-    return new_node(ND_PTR_ADD, lhs, rhs);
+    return new_binary(ND_PTR_ADD, lhs, rhs, tok);
   if (is_integer(lhs->ty) && rhs->ty->base)
-    return new_node(ND_PTR_ADD, rhs, lhs);
+    return new_binary(ND_PTR_ADD, rhs, lhs, tok);
+  error_tok(tok, "invalid operands");
 }
 
-static Node *new_sub(Node *lhs, Node *rhs) {
+static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
   add_type(lhs);
   add_type(rhs);
 
   if (is_integer(lhs->ty) && is_integer(rhs->ty))
-    return new_node(ND_SUB, lhs, rhs);
+    return new_binary(ND_SUB, lhs, rhs, tok);
   if (lhs->ty->base && is_integer(rhs->ty))
-    return new_node(ND_PTR_SUB, lhs, rhs);
+    return new_binary(ND_PTR_SUB, lhs, rhs, tok);
   if (lhs->ty->base && rhs->ty->base)
-    return new_node(ND_PTR_DIFF, lhs, rhs);
+    return new_binary(ND_PTR_DIFF, lhs, rhs, tok);
+  error_tok(tok, "invalid operands");
 }
+
 // add = mul ("+" mul | "-" mul)*
-static Node *add() {
+static Node *add(void) {
   Node *node = mul();
+  Token *tok;
 
   for (;;) {
-    if (consume("+"))
-      node = new_add(node, mul());
-    else if (consume("-"))
-      node = new_sub(node, mul());
+    if (tok = consume("+"))
+      node = new_add(node, mul(), tok);
+    else if (tok = consume("-"))
+      node = new_sub(node, mul(), tok);
     else
       return node;
   }
 }
 
 // mul = unary ("*" unary | "/" unary)*
-static Node *mul() {
+static Node *mul(void) {
   Node *node = unary();
+  Token *tok;
 
   for (;;) {
-    if (consume("*"))
-      node = new_node(ND_MUL, node, unary());
-    else if (consume("/"))
-      node = new_node(ND_DIV, node, unary());
+    if (tok = consume("*"))
+      node = new_binary(ND_MUL, node, unary(), tok);
+    else if (tok = consume("/"))
+      node = new_binary(ND_DIV, node, unary(), tok);
     else
       return node;
   }
 }
 
-// unary = ("+" | "-" | "*" | "&")? unary | primary
-static Node *unary() {
+// unary = ("+" | "-" | "*" | "&")? unary
+//       | primary
+static Node *unary(void) {
+  Token *tok;
   if (consume("+"))
     return unary();
-  if (consume("-"))
-    return new_node(ND_SUB, new_node_num(0), unary()); 
-  if (consume("&"))
-    return new_unary(ND_ADDR, unary());
-  if (consume("*"))
-    return new_unary(ND_DEREF, unary());
-  
+  if (tok = consume("-"))
+    return new_binary(ND_SUB, new_num(0, tok), unary(), tok);
+  if (tok = consume("&"))
+    return new_unary(ND_ADDR, unary(), tok);
+  if (tok = consume("*"))
+    return new_unary(ND_DEREF, unary(), tok);
   return primary();
 }
 
-// func_args = "(" (assign ("," assign)*? ")"
-static Node *func_args() {
-  if(consume(")"))
+// func-args = "(" (assign ("," assign)*)? ")"
+static Node *func_args(void) {
+  if (consume(")"))
     return NULL;
 
   Node *head = assign();
   Node *cur = head;
-
-  while(consume(",")) {
+  while (consume(",")) {
     cur->next = assign();
     cur = cur->next;
   }
@@ -524,40 +378,34 @@ static Node *func_args() {
   return head;
 }
 
-
 // primary = "(" expr ")" | ident func-args? | num
-static Node *primary(){
+static Node *primary(void) {
   if (consume("(")) {
     Node *node = expr();
     expect(")");
     return node;
-  } 
-  
-  Token *tok = consume_ident();
-  if (tok) {
+  }
+
+  Token *tok;
+  if (tok = consume_ident()) {
+    // Function call
     if (consume("(")) {
-      Node *node = new_branch(ND_FUNCALL);
+      Node *node = new_node(ND_FUNCALL, tok);
       node->funcname = duplicate(tok->str, tok->len);
+
       node->args = func_args();
       return node;
     }
-    Node *node = calloc(1, sizeof(Node));
-    node->kind = ND_LVAR;
 
-    LVar *lvar = find_lvar(tok);
-    if (lvar) {
-      node->var = lvar;
-    }
-    else {
-      lvar = new_lvar(duplicate(tok->str, tok->len));
-      node->var = lvar;
-    }
-    return node;
+    // Variable
+    Var *var = find_var(tok);
+    if (!var)
+      error_tok(tok, "undefined variable");
+    return new_var_node(var, tok);
   }
 
-  return new_node_num(expect_number());
+  tok = token;
+  if (tok->kind != TK_NUM)
+    error_tok(tok, "expected expression");
+  return new_num(expect_number(), tok);
 }
-
-
-
-
